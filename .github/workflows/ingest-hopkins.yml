@@ -1,0 +1,52 @@
+name: Ingest Claude Hopkins archive
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/ingest_archive.py'
+      - '.github/workflows/ingest-hopkins.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install system OCR tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python packages
+        run: pip install pymupdf pillow imagehash pytesseract
+
+      - name: Download, render, OCR and catalogue archive
+        run: python scripts/ingest_archive.py
+
+      - name: Show archive totals
+        run: cat data/archive-stats.json
+
+      - name: Commit generated archive
+        run: |
+          git config user.name "hopkins-archive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/ads data/archive.json data/archive-stats.json
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Ingest Hopkins public-domain ad scans"
+            git push
+          fi
